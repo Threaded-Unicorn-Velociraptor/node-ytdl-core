@@ -1,4 +1,5 @@
 /* eslint-disable */
+console.warn = () => {};
 const fs = require('fs');
 const os = require('os');
 const childProcess = require('child_process');
@@ -6,7 +7,10 @@ const ytdl = require('../lib');
 const {readdir} = require('fs/promises');
 const path = require('path');
 
-console.log("START PROCESS ", new Date());
+const startTime = new Date();
+let endTime, totalDurationInSeconds;
+
+console.log(`Process started at ${startTime}`);
 let tmpDir, outDir;
 const tempDirPrefix = 'velociraptor-temp';
 const outDirPrefix = 'velociraptor-out';
@@ -25,15 +29,13 @@ const createDir = (dirPrefix) => {
 tmpDir = createDir(tempDirPrefix);
 outDir = createDir(outDirPrefix);
 
-console.log(tmpDir, "***", outDir);
-
 let childProcessIds = [];
 
 const url = `https://www.youtube.com/watch?v=QJpZuWwdi_U`;
 let bitrate, time, totalBits, rangeSize;
-const threadCount = (os.cpus().length - 2) || 3;
-// const threadCount = 1;
-async function main() {
+
+
+async function main(threadCount) {
     try {
         const data = await ytdl.getInfo(url);
         // video duration in seconds
@@ -44,16 +46,16 @@ async function main() {
         totalBits = time * bitrate;
         totalBytes = totalBits / 8;
         rangeSize = Math.floor(totalBytes / threadCount);
-        const ranges = getRanges(totalBytes, rangeSize, threadCount);
+        const ranges = getRanges(rangeSize, threadCount);
         const fileName = "output";
         
         ranges.forEach((range, index) => {
           // create readable stream in a new child process to download video for each range calculated
             const child = childProcess.fork('./src/childProcess.js');
+            console.log(`started child process ${index} with process id ${child.pid}`);
             childProcessIds.push(child.pid);
             const outputFile = `${tmpDir}/${fileName}-${index}.txt`;
             child.on('message', (message) => {
-                console.log(message, new Date(), childProcessIds);
                 childProcessIds = childProcessIds.filter(id => {
                     if(id === child.pid) {
                         process.kill(child.pid);
@@ -61,10 +63,9 @@ async function main() {
                     }
                     return id !== child.pid;
                 });
-                console.log(childProcessIds, "after filter");
                 if(childProcessIds.length === 0) {
                     console.log("killed all child processes ", childProcessIds)
-                    // readFiles();
+                    readFiles();
                 }
             });
 
@@ -77,7 +78,7 @@ async function main() {
 }
 
 
-const getRanges = (totalBytes, size, count) => {
+const getRanges = (size, count) => {
     const ranges = [];
     let start = 0;
     while(count > 0) {
@@ -117,11 +118,21 @@ const readFiles = async () => {
           catch (e) {
             console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
           }
-        console.log("END PROCESS ", new Date());
+        endTime = new Date();
+        totalDurationInSeconds = (endTime - startTime) / 1000;
+        console.log(`******************************************************`);
+        console.log(`Process started at ${startTime}`);
+        console.log(`Process ended at ${endTime}`);
+        console.log(`Total duration of process: ${totalDurationInSeconds}`);
+        console.log(`******************************************************`);
             
     } catch (err) {
         console.error(err);
     }
 }
 
-main();
+const threadCount = (os.cpus().length - 2) || 3;
+const defaultThreadCount = 1;
+
+main(threadCount);
+module.exports = main;

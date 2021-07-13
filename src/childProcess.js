@@ -1,4 +1,5 @@
 /* eslint-disable */
+console.warn = () => {};
 const fs = require('fs');
 const ytdl = require('../lib');
 
@@ -17,7 +18,7 @@ const processVideoDownloadByRange = (url, range, outputFile) => {
 process.on('message', (message) => {
     if (typeof message === "object" && message.event === 'START') {
         const {url, range, outputFile} = message;
-        console.log('Child process received START message', new Date(), outputFile);
+        // console.log('Child process received START message', new Date(), outputFile);
         processVideoDownloadByRange(url, range, outputFile);
     }
 });
